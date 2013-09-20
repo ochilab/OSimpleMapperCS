@@ -1,0 +1,4 @@
+OSimpleMapperCS
+===============
+
+C#でのSimpleDBのORマッパーもどきです。
