@@ -1,26 +1,35 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Amazon;
 using Amazon.SimpleDB;
 using Amazon.SimpleDB.Model;
 using System.Reflection;
 using System.Diagnostics;
-using Amazon;
+
 
 namespace Org.Ochilab.AWS
 {
     class OSimpleMapper
     {
-
         static AmazonSimpleDBClient sdb;
 
+        private string prefix;
+
+        public string Prefix {
+            get { return prefix; }
+            set { prefix = value; }
+        }
+        
         IDictionary<String, String> map = new Dictionary<String, String>();
 
 
         public OSimpleMapper(string endpoint)
         {
+            prefix = "";
             AmazonSimpleDBConfig config = new AmazonSimpleDBConfig { ServiceURL = endpoint };
+            //sdb = (AmazonSimpleDBClient)AWSClientFactory.CreateAmazonSimpleDBClient(config);
             sdb = new AmazonSimpleDBClient(config);
 
         }
@@ -32,28 +41,24 @@ namespace Org.Ochilab.AWS
         /**
         *  Domainの作成
         * */
-        public void createDomain(String DomainName)
+        public bool createDomain(String DomainName)
         {
-
-            bool found = false;
-
-            //同名のドメインを探す
+            string fullName =prefix + DomainName;
+       
+            //同名のドメインがあれば何もしない
             ListDomainsResponse response = sdb.ListDomains(new ListDomainsRequest());
-            //foreach (string domain in response.ListDomainsResult.DomainName)
+            //foreach (string domain in response.ListDomainsResult.DomainNames)
             foreach (string domain in response.DomainNames)
             {
-                if (domain == DomainName)
+                if (fullName.Equals(domain))
                 {
-                    found = true;
-                    break;
+                    return false;
                 }
             }
             //同名のドメインがなければ作成
-            if (!found)
-            {
-                sdb.CreateDomain(
-                  new CreateDomainRequest() { DomainName = DomainName });
-            }
+            sdb.CreateDomain(
+                new CreateDomainRequest() { DomainName = fullName });
+            return true;
 
         }
 
@@ -62,9 +67,9 @@ namespace Org.Ochilab.AWS
          * */
         public Object getItem(Object obj, string id)
         {
-            GetAttributesResponse response = sdb.GetAttributes(new GetAttributesRequest() { DomainName = obj.GetType().Name, ItemName = id });
+            GetAttributesResponse response = sdb.GetAttributes(new GetAttributesRequest() { DomainName = prefix+ obj.GetType().Name, ItemName = id });
             Type type = obj.GetType();
-            //foreach (Amazon.SimpleDB.Model.Attribute attribute in response.GetAttributesResult.Attribute)
+            //foreach (Amazon.SimpleDB.Model.Attribute attribute in response.GetAttributesResult.Attributes)
             foreach (Amazon.SimpleDB.Model.Attribute attribute in response.Attributes)
             {
                 foreach (PropertyInfo prop in type.GetProperties())
@@ -91,12 +96,11 @@ namespace Org.Ochilab.AWS
             Type t = Type.GetType(clazz);
             List<object> list = new List<object>();
             SelectResponse response = sdb.Select(new SelectRequest() { SelectExpression = query });
-            //foreach (Item item in response.SelectResult.Item)
+            //foreach (Item item in response.SelectResult.Items)
             foreach (Item item in response.Items)
             {
                 object obj = System.Activator.CreateInstance(t);
                 Type type = obj.GetType();
-                //foreach (Amazon.SimpleDB.Model.Attribute attribute in item.Attribute)
                 foreach (Amazon.SimpleDB.Model.Attribute attribute in item.Attributes)
                 {
                     foreach (PropertyInfo prop in type.GetProperties())
@@ -145,9 +149,8 @@ namespace Org.Ochilab.AWS
             }
             sdb.PutAttributes(new PutAttributesRequest()
             {
-                //Attribute = listReplaceAttribute,
                 Attributes = listReplaceAttribute,
-                DomainName = obj.GetType().Name,
+                DomainName = prefix+obj.GetType().Name,
                 ItemName = id
             });
         }
@@ -159,7 +162,7 @@ namespace Org.Ochilab.AWS
         {
             sdb.DeleteAttributes(new DeleteAttributesRequest()
             {
-                DomainName = domainName,
+                DomainName = prefix+domainName,
                 ItemName = id
             });
         }
